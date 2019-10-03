@@ -185,13 +185,12 @@ class RestrictedBoltzmannMachine():
             pass
             
         else:
-            v_probs = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_h_to_v))
-            v = sample_binary(v_probs)
+            pass
 
-            return v_probs, v
-        
-        print("dont think this is supposed to print")  
-        return np.zeros((n_samples,self.ndim_visible)), np.zeros((n_samples,self.ndim_visible))
+        v_probs = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_h_to_v))
+        v = sample_binary(v_probs)
+
+        return v_probs, v
 
     
     """ rbm as a belief layer : the functions below do not have to be changed until running a deep belief net """
