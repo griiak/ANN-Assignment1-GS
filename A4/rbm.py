@@ -81,8 +81,13 @@ class RestrictedBoltzmannMachine():
 
         for it in range(n_iterations):
 
+            #get mini batch
+            start = it * self.batch_size
+            end = min(start + batch_size-1, n_samples)
+            v0 = visible_trainset[start:end][:]
+
             # positive phase
-            
+
             # negative phase
 
             # updating parameters
@@ -138,13 +143,17 @@ class RestrictedBoltzmannMachine():
            tuple ( p(h|v) , h) 
            both are shaped (size of mini-batch, size of hidden layer)
         """
+
+        #equation 10 
         
         assert self.weight_vh is not None
 
         n_samples = visible_minibatch.shape[0]
-        
-        return np.zeros((n_samples,self.ndim_hidden)), np.zeros((n_samples,self.ndim_hidden))
 
+        h_probs = sigmoid(self.bias_h + np.dot(visible_minibatch, self.weight_v_to_h))
+        h = sample_binary(h_probs)
+
+        return h_probs, h
 
     def get_v_given_h(self,hidden_minibatch):
         
@@ -158,6 +167,7 @@ class RestrictedBoltzmannMachine():
            tuple ( p(v|h) , v) 
            both are shaped (size of mini-batch, size of visible layer)
         """
+        #equation 11
         
         assert self.weight_vh is not None
 
@@ -171,13 +181,16 @@ class RestrictedBoltzmannMachine():
             Then, for both parts, use the appropriate activation function to get probabilities and a sampling method \
             to get activities. The probabilities as well as activities can then be concatenated back into a normal visible layer.
             """
-            
+            print("idk")
             pass
             
         else:
-                        
-            pass
-            
+            v_probs = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_h_to_v))
+            v = sample_binary(v_probs)
+
+            return v_probs, v
+        
+        print("dont think this is supposed to print")  
         return np.zeros((n_samples,self.ndim_visible)), np.zeros((n_samples,self.ndim_visible))
 
     
