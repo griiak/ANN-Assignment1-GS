@@ -58,10 +58,10 @@ class RestrictedBoltzmannMachine():
 
         self.momentum = 0.7
 
-        self.print_period = 5000
+        self.print_period = 2000
 
         self.rf = {  # receptive-fields. Only applicable when visible layer is input data
-            "period": 5000,  # iteration period to visualize
+            "period": 2000,  # iteration period to visualize
             "grid": [5, 5],  # size of the grid
             "ids": np.random.randint(0, self.ndim_hidden, 25)  # pick some random hidden units
         }
@@ -99,9 +99,8 @@ class RestrictedBoltzmannMachine():
             # pos_phase = np.sum(h_probs) * np.matmul(v0.T, h0)
 
             # negative phase
-            hk = np.copy(h0)
-            v_probs, v1 = self.get_v_given_h(hk)
-            h1 = h_probs
+            v_probs, v1 = self.get_v_given_h(h0)
+            h1_probs, h1 = self.get_h_given_v(v1)
             # updating parameters
             self.update_params(v0, h0, v1, h1)
             # visualize once in a while when visible layer is input images
@@ -113,7 +112,7 @@ class RestrictedBoltzmannMachine():
             # print progress
 
             if it % self.print_period == 0:
-                print("iteration=%7d recon_loss=%4.4f" % (it, np.linalg.norm(visible_trainset - visible_trainset)))
+                print("iteration=%7d recon_loss=%4.4f" % (it, np.linalg.norm(visible_trainset[start:end][:] - v1)))
 
         return
 
@@ -140,7 +139,7 @@ class RestrictedBoltzmannMachine():
 
         return
 
-    def get_h_given_v(self, visible_minibatch):
+    def get_h_given_v(self, visible_minibatch, sample = False):
 
         """Compute probabilities p(h|v) and activations h ~ p(h|v) 
 
