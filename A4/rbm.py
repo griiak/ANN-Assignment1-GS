@@ -1,4 +1,5 @@
 from util import *
+import time
 
 
 class RestrictedBoltzmannMachine():
@@ -83,6 +84,7 @@ class RestrictedBoltzmannMachine():
         print(visible_trainset.shape)
         n_iterations = int(n_samples/self.batch_size)
         for epoch in range(n_epochs):
+            start_time = time.time()
             np.random.shuffle(visible_trainset)
             for it in range(n_iterations):
                 # get mini batch
@@ -100,12 +102,12 @@ class RestrictedBoltzmannMachine():
                 # print(self.batch_size)
                 # input("Press Enter to continue...")
                 # positive phase
-                h_probs, h0 = self.get_h_given_v(v0,True)
+                h_probs, h0 = self.get_h_given_v(v0, True)
                 # pos_phase = np.sum(h_probs) * np.matmul(v0.T, h0)
 
                 # negative phase
-                v_probs, v1 = self.get_v_given_h(h0)
-                h1 = self.get_h_given_v(v1,False)
+                v_probs, v1 = self.get_v_given_h(h0, True)
+                h1 = self.get_h_given_v(v1, False)
                 # updating parameters
                 self.update_params(v0, h0, v1, h1)
                 # visualize once in a while when visible layer is input images
@@ -117,8 +119,9 @@ class RestrictedBoltzmannMachine():
                 # print progress
 
                 if (n_iterations*epoch+it) % self.print_period == 0:
-                    print("iteration=%7d recon_loss=%4.4f" % (n_iterations*epoch+it, (np.mean(abs(visible_trainset[start:end][:] - v1)))))
-
+                    print("iteration=%7d recon_loss=%4.4f" % (n_iterations*epoch+it, (np.linalg.norm(visible_trainset[start:end][:] - v1))))
+            elapsed_time = time.time() - start_time
+            print("elapsed", elapsed_time)
         return
 
     def update_params(self, v_0, h_0, v_k, h_k):
@@ -134,10 +137,14 @@ class RestrictedBoltzmannMachine():
            h_k: activities or probabilities of hidden layer
            all args have shape (size of mini-batch, size of respective layer)
         """
-        self.delta_bias_v += np.average(v_0 - v_k,0)
+        # vv = (1/self.batch_size)*np.sum((v_0 - v_k).transpose(),axis=1)
+        # print(vv.shape)
+        # vq = np.average(v_0 - v_k,0)
+        # print(vv-vq)
+        self.delta_bias_v = np.average(v_0 - v_k,0)
         # print(self.delta_bias_v)
-        self.delta_weight_vh += np.matmul(v_0.T, h_0) - np.matmul(v_k.T, h_k)
-        self.delta_bias_h += np.average(h_0 - h_k,0)
+        self.delta_weight_vh = (1/self.batch_size)*(np.matmul(v_0.T, h_0) - np.matmul(v_k.T, h_k))
+        self.delta_bias_h = np.average(h_0 - h_k,0)
 
         self.bias_v += self.learning_rate*self.delta_bias_v
         self.weight_vh += self.learning_rate*self.delta_weight_vh
@@ -165,12 +172,12 @@ class RestrictedBoltzmannMachine():
 
         h_probs = sigmoid(self.bias_h + np.dot(visible_minibatch, self.weight_vh))
 
-        if sample == True:
+        if sample:
             h = sample_binary(h_probs)
             return h_probs, h
         return h_probs
 
-    def get_v_given_h(self, hidden_minibatch):
+    def get_v_given_h(self, hidden_minibatch, sample):
 
         """Compute probabilities p(v|h) and activations v ~ p(v|h)
 
@@ -194,26 +201,37 @@ class RestrictedBoltzmannMachine():
             Then, for both parts, use the appropriate activation function to get probabilities and a sampling method \
             to get activities. The probabilities as well as activities can then be concatenated back into a normal visible layer.
             """
-            print("idk")
-            pass
+            support = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_vh.T))
+            layers = support[:, :-self.n_labels]
+            last_layer = support[:, -self.n_labels:]
 
+            v_probs = sigmoid(layers)
+            l_probs = softmax(last_layer)
+
+            vis = sample_binary(v_probs)
+            labels = sample_categorical(l_probs)
+
+            v = np.concatenate((vis, labels), axis=1)
+            v_probs = np.concatenate((v_probs, l_probs), axis=1)
         else:
-            pass
+            v_probs = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_vh.T))
+            v = sample_binary(v_probs)
 
-        v_probs = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_vh.T))
-        v = sample_binary(v_probs)
-
-        return v_probs, v
+        if sample:
+            return v_probs, v
+        else:
+            return v
 
     """ rbm as a belief layer : the functions below do not have to be changed until running a deep belief net """
 
     def untwine_weights(self):
 
         self.weight_v_to_h = np.copy(self.weight_vh)
+
         self.weight_h_to_v = np.copy(np.transpose(self.weight_vh))
         self.weight_vh = None
 
-    def get_h_given_v_dir(self, visible_minibatch):
+    def get_h_given_v_dir(self, visible_minibatch, sample):
 
         """Compute probabilities p(h|v) and activations h ~ p(h|v)
 
@@ -227,12 +245,16 @@ class RestrictedBoltzmannMachine():
         """
 
         assert self.weight_v_to_h is not None
+        h_probs = sigmoid(self.bias_h + np.dot(visible_minibatch, self.weight_v_to_h))
+        h = sample_binary(h_probs)
+        if sample:
+            return h_probs, h
+        else:
+            return h
+        # return h_probs, h
 
-        n_samples = visible_minibatch.shape[0]
 
-        return np.zeros((n_samples, self.ndim_hidden)), np.zeros((n_samples, self.ndim_hidden))
-
-    def get_v_given_h_dir(self, hidden_minibatch):
+    def get_v_given_h_dir(self, hidden_minibatch, sample):
 
         """Compute probabilities p(v|h) and activations v ~ p(v|h)
 
@@ -247,8 +269,6 @@ class RestrictedBoltzmannMachine():
 
         assert self.weight_h_to_v is not None
 
-        n_samples = hidden_minibatch.shape[0]
-
         if self.is_top:
 
             """
@@ -258,13 +278,27 @@ class RestrictedBoltzmannMachine():
             to get activities. The probabilities as well as activities can then be concatenated back into a normal visible layer.
             """
 
-            pass
+            support = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_h_to_v))
+            layers = support[:, :-self.n_labels]
+            last_layer = support[:, -self.n_labels:]
+
+            v_probs = sigmoid(layers)
+            l_probs = softmax(last_layer)
+
+            vis = sample_binary(visProb)
+            labels = sample_categorical(labProb)
+
+            v = np.concatenate((vis, labels), axis=1)
+            v_probs = np.concatenate((v_probs, l_probs), axis=1)
 
         else:
+            v_probs = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_h_to_v))
+            v = sample_binary(v_probs)
 
-            pass
-
-        return np.zeros((n_samples, self.ndim_visible)), np.zeros((n_samples, self.ndim_visible))
+        if sample:
+            return v_probs, v
+        else:
+            return v
 
     def update_generate_params(self, inps, trgs, preds):
 

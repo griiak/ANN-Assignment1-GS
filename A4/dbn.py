@@ -65,8 +65,13 @@ class DeepBeliefNet():
         
         vis = true_img # visible layer gets the image data
         
-        lbl = np.ones(true_lbl.shape)/10. # start the net by telling you know nothing about labels        
-        
+        lbl = np.ones(true_lbl.shape)/10. # start the net by telling you know nothing about labels
+
+        hid = self.rbm_stack['vis--hid'].get_h_given_v_dir(vis,False)
+        pen = self.rbm_stack['hid--pen'].get_h_given_v_dir(hid,False)
+        print(pen.shape)
+        print(lbl.shape)
+        # ult = self.rbh_stack['pen+lbl--top'].get_h_given_v_dir(pen)
         for _ in range(self.n_gibbs_recog):
 
             pass
@@ -131,20 +136,23 @@ class DeepBeliefNet():
         except IOError :
         
             print ("training vis--hid")
-            """ 
-            CD-1 training for vis--hid 
-            """            
+
+            self.rbm_stack["vis--hid"].cd1(vis_trainset,10)
             self.savetofile_rbm(loc="trained_rbm",name="vis--hid")
 
             print ("training hid--pen")
-            self.rbm_stack["vis--hid"].untwine_weights()            
-            """ 
-            CD-1 training for hid--pen 
-            """            
+            self.rbm_stack["vis--hid"].untwine_weights()
+            layer_two_input = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset,False)
+            self.rbm_stack["hid--pen"].cd1(layer_two_input, 10)
             self.savetofile_rbm(loc="trained_rbm",name="hid--pen")            
 
             print ("training pen+lbl--top")
             self.rbm_stack["hid--pen"].untwine_weights()
+            final_input = self.rbm_stack["hid--pen"].get_h_given_v_dir(layer_two_input, False)
+            print(self.rbm_stack["hid--pen"].get_h_given_v_dir(layer_two_input, False).shape[0])
+            lbl = np.ones([final_input.shape[0],self.rbm_stack["pen+lbl--top"].n_labels])/10.
+            comb_input = np.concatenate((final_input,lbl), axis=1)
+            self.rbm_stack["pen+lbl--top"].cd1(comb_input, 10)
             """ 
             CD-1 training for pen+lbl--top 
             """
