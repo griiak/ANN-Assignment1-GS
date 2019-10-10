@@ -67,16 +67,18 @@ class DeepBeliefNet():
         
         lbl = np.ones(true_lbl.shape)/10. # start the net by telling you know nothing about labels
 
-        hid = self.rbm_stack['vis--hid'].get_h_given_v_dir(vis,False)
-        pen = self.rbm_stack['hid--pen'].get_h_given_v_dir(hid,False)
+        _,hid = self.rbm_stack['vis--hid'].get_h_given_v_dir(vis,True)
+        _,pen = self.rbm_stack['hid--pen'].get_h_given_v_dir(hid,True)
         print(pen.shape)
         print(lbl.shape)
+        vk = np.concatenate((pen,lbl),axis=1)
         # ult = self.rbh_stack['pen+lbl--top'].get_h_given_v_dir(pen)
+        print(vk.shape)
         for _ in range(self.n_gibbs_recog):
+            hk = self.rbm_stack['pen+lbl--top'].get_h_given_v(vk,False)
+            vk = self.rbm_stack['pen+lbl--top'].get_v_given_h(hk,False)
 
-            pass
-
-        predicted_lbl = np.zeros(true_lbl.shape)
+        predicted_lbl = vk[:,:-10]
             
         print ("accuracy = %.2f%%"%(100.*np.mean(np.argmax(predicted_lbl,axis=1)==np.argmax(true_lbl,axis=1))))
         
@@ -137,25 +139,22 @@ class DeepBeliefNet():
         
             print ("training vis--hid")
 
-            self.rbm_stack["vis--hid"].cd1(vis_trainset,10)
+            self.rbm_stack["vis--hid"].cd1(vis_trainset,1)
             self.savetofile_rbm(loc="trained_rbm",name="vis--hid")
 
             print ("training hid--pen")
             self.rbm_stack["vis--hid"].untwine_weights()
             layer_two_input = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset,False)
-            self.rbm_stack["hid--pen"].cd1(layer_two_input, 10)
+            self.rbm_stack["hid--pen"].cd1(layer_two_input, 1)
             self.savetofile_rbm(loc="trained_rbm",name="hid--pen")            
 
             print ("training pen+lbl--top")
             self.rbm_stack["hid--pen"].untwine_weights()
             final_input = self.rbm_stack["hid--pen"].get_h_given_v_dir(layer_two_input, False)
-            print(self.rbm_stack["hid--pen"].get_h_given_v_dir(layer_two_input, False).shape[0])
             lbl = np.ones([final_input.shape[0],self.rbm_stack["pen+lbl--top"].n_labels])/10.
             comb_input = np.concatenate((final_input,lbl), axis=1)
-            self.rbm_stack["pen+lbl--top"].cd1(comb_input, 10)
-            """ 
-            CD-1 training for pen+lbl--top 
-            """
+            self.rbm_stack["pen+lbl--top"].cd1(comb_input, 1)
+
             self.savetofile_rbm(loc="trained_rbm",name="pen+lbl--top")            
 
         return    
