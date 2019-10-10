@@ -177,7 +177,7 @@ class RestrictedBoltzmannMachine():
             return h_probs, h
         return h_probs
 
-    def get_v_given_h(self, hidden_minibatch, sample):
+    def get_v_given_h(self, hidden_minibatch, sample, true_labels=None):
 
         """Compute probabilities p(v|h) and activations v ~ p(v|h)
 
@@ -209,7 +209,12 @@ class RestrictedBoltzmannMachine():
             l_probs = softmax(last_layer)
 
             vis = sample_binary(v_probs)
-            labels = sample_categorical(l_probs)
+
+
+            if true_labels:
+                labels = true_labels
+            else:
+                labels = sample_categorical(l_probs)
 
             v = np.concatenate((vis, labels), axis=1)
             v_probs = np.concatenate((v_probs, l_probs), axis=1)
