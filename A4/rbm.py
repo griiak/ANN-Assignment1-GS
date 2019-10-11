@@ -97,12 +97,12 @@ class RestrictedBoltzmannMachine():
 
             # negative phase
             v1_probs,v1 = self.get_v_given_h(h0)
-            h1_probs, h1 = self.get_h_given_v(prob_on_visible_k)
+            h1_probs, h1 = self.get_h_given_v(v1)
 
 
             # updating parameters
 
-            self.update_params(v0,h0,v1_probs,h1_probs)
+            self.update_params(v0,h0,v1,h1_probs)
 
             
             # # visualize once in a while when visible layer is input images
@@ -117,7 +117,7 @@ class RestrictedBoltzmannMachine():
             if (it) % self.print_period == 0:
                 # print("iteration=%7d recon_loss=%4.4f start=%d end=%d" % (
                 # it, (np.linalg.norm(visible_trainset[start:end][:] - v1)), start,end))
-                print ("iteration=%7d recon_loss=%4.4f"%(it, np.linalg.norm(np.sum(v_0 - v_k,axis=0))))
+                print ("iteration=%7d recon_loss=%4.4f"%(it, np.linalg.norm(np.sum(v0 - v1,axis=0))))
 
         # elapsed_time = time.time() - start_time
         # print("elapsed", elapsed_time)
@@ -326,8 +326,8 @@ class RestrictedBoltzmannMachine():
            all args have shape (size of mini-batch, size of respective layer)
         """
 
-        self.delta_weight_v_to_h += 0
-        self.delta_bias_h += 0
+        self.delta_weight_v_to_h += (1.0/self.batch_size)*self.learning_rate*np.dot((trgs-preds).transpose(),inps).transpose()
+        self.delta_bias_h += (1.0/self.batch_size)*self.learning_rate*np.sum(trgs-preds,axis=0)
 
         self.weight_v_to_h += self.delta_weight_v_to_h
         self.bias_h += self.delta_bias_h

@@ -163,7 +163,7 @@ class DeepBeliefNet():
             print ("training hid--pen")
             self.rbm_stack["vis--hid"].untwine_weights() 
 
-            layer_two_input =  self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset)[0]
+            layer_two_input =  self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset)[1]
             self.rbm_stack["hid--pen"].cd1(layer_two_input,n_iterations)
 
             self.savetofile_rbm(loc="trained_rbm",name="hid--pen")            
@@ -173,18 +173,18 @@ class DeepBeliefNet():
             print ("training pen+lbl--top")
             self.rbm_stack["hid--pen"].untwine_weights()
 
-            final_input = self.rbm_stack["hid--pen"].get_h_given_v_dir(layer_two_input)[0]
+            final_input = self.rbm_stack["hid--pen"].get_h_given_v_dir(layer_two_input)[1]
             comb_input = np.concatenate((final_input,lbl_trainset),axis=1)
             self.rbm_stack["pen+lbl--top"].cd1(comb_input,n_iterations)
 
             self.savetofile_rbm(loc="trained_rbm",name="pen+lbl--top")   
 
-        return    
+        return
 
     def train_wakesleep_finetune(self, vis_trainset, lbl_trainset, n_iterations):
 
         """
-        Wake-sleep method for learning all the parameters of network. 
+        Wake-sleep method for learning all the parameters of network.
         First tries to load previous saved parameters of the entire network.
 
         Args:
@@ -192,38 +192,56 @@ class DeepBeliefNet():
           lbl_trainset: label data shaped (size of training set, size of label layer)
           n_iterations: number of iterations of learning (each iteration learns a mini-batch)
         """
-        
-        print ("\ntraining wake-sleep..")
 
-        try :
-            
-            self.loadfromfile_dbn(loc="trained_dbn",name="vis--hid")
-            self.loadfromfile_dbn(loc="trained_dbn",name="hid--pen")
-            self.loadfromfile_rbm(loc="trained_dbn",name="pen+lbl--top")
-            
-        except IOError :            
+        print("\ntraining wake-sleep..")
+
+        try:
+
+            self.loadfromfile_dbn(loc="trained_dbn", name="vis--hid")
+            self.loadfromfile_dbn(loc="trained_dbn", name="hid--pen")
+            self.loadfromfile_rbm(loc="trained_dbn", name="pen+lbl--top")
+
+        except IOError:
 
             self.n_samples = vis_trainset.shape[0]
-            
-            for it in range(n_iterations):            
-                                
+            n_labels = lbl_trainset.shape[1]
+            self.rbm_stack["vis--hid"].untwine_weights()
+            self.rbm_stack["hid--pen"].untwine_weights()
+
+            for it in range(n_iterations):
+
                 """ 
                 wake-phase : drive the network bottom-to-top using visible and label data
+
                 """
+                layer_two_input = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset)[1]
+                final_input = self.rbm_stack["hid--pen"].get_h_given_v_dir(layer_two_input)[1]
+                v0 = np.concatenate((final_input, lbl_trainset), axis=1)
 
                 """
                 alternating Gibbs sampling in the top RBM : also store neccessary information for learning this RBM
                 """
+                for _ in range(self.n_gibbs_wakesleep):
+                    hk = self.rbm_stack['pen+lbl--top'].get_h_given_v(v0)[1]
+                    vk = self.rbm_stack['pen+lbl--top'].get_v_given_h(hk)[1]
 
                 """
                 sleep phase : from the activities in the top RBM, drive the network top-to-bottom
                 """
+                layer_two_input_down = self.rbm_stack["hid--pen"].get_v_given_h_dir(vk[:,:-n_labels])[1]
+                vis_new = self.rbm_stack["vis--hid"].get_v_given_h_dir(layer_two_input_down)[1]
+                # vis_trainset = vis_new
 
                 """
                 predictions : compute generative predictions from wake-phase activations, 
                               and recognize predictions from sleep-phase activations
                 """
-                
+                self.rbm_stack['hid--pen'].update_generate_params(final_input, layer_two_input, layer_two_input_down)
+                self.rbm_stack['vis--hid'].update_generate_params(layer_two_input, vis_trainset,vis_new)
+
+                self.rbm_stack['vis--hid'].update_recognize_params(vis_trainset, layer_two_input, layer_two_input_down)
+                self.rbm_stack['hid--pen'].update_recognize_params(layer_two_input, final_input, vk[:,:-n_labels])
+
                 """ 
                 update generative parameters :
                 here you will only use "update_generate_params" method from rbm class
@@ -233,17 +251,18 @@ class DeepBeliefNet():
                 update parameters of top rbm:
                 here you will only use "update_params" method from rbm class
                 """
-                
+                h0 = self.rbm_stack['pen+lbl--top'].get_h_given_v(v0)[1]
+                self.rbm_stack['pen+lbl--top'].update_params(v0, h0, vk, hk)
                 """ 
                 update generative parameters :
                 here you will only use "update_recognize_params" method from rbm class
                 """
 
-                if it % self.print_period == 0 : print ("iteration=%7d"%it)
-                        
-            self.savetofile_dbn(loc="trained_dbn",name="vis--hid")
-            self.savetofile_dbn(loc="trained_dbn",name="hid--pen")
-            self.savetofile_rbm(loc="trained_dbn",name="pen+lbl--top")            
+                if it % self.print_period == 0: print("iteration=%7d" % it)
+
+            self.savetofile_dbn(loc="trained_dbn", name="vis--hid")
+            self.savetofile_dbn(loc="trained_dbn", name="hid--pen")
+            self.savetofile_rbm(loc="trained_dbn", name="pen+lbl--top")
 
         return
 
