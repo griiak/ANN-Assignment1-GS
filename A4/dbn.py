@@ -60,7 +60,8 @@ class DeepBeliefNet():
           true_imgs: visible data shaped (number of samples, size of visible layer)
           true_lbl: true labels shaped (number of samples, size of label layer). Used only for calculating accuracy, not driving the net
         """
-        
+        print("in recognize")
+
         n_samples = true_img.shape[0]
         n_labels = true_lbl.shape[1]
         
@@ -87,42 +88,42 @@ class DeepBeliefNet():
         return
 
 
+
     def generate(self,true_lbl,name):
         
         """Generate data from labels
-
         Args:
           true_lbl: true labels shaped (number of samples, size of label layer)
           name: string used for saving a video of generated visible activations
         """
-        print("in generate")
+        print('generate')
+        
         n_sample = true_lbl.shape[0]
         n_labels = true_lbl.shape[1]
-
-        records = []
-        fig, ax = plt.subplots(1, 1, figsize=(3, 3))  # ,constrained_layout=True)
+        
+        records = []        
+        fig,ax = plt.subplots(1,1,figsize=(3,3))#,constrained_layout=True)
         plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
-        ax.set_xticks([]);
-        ax.set_yticks([])
+        ax.set_xticks([]); ax.set_yticks([])
 
         lbl = true_lbl
-        vis = np.random.rand(n_sample, self.sizes["vis"])
-        hid = self.rbm_stack['vis--hid'].get_h_given_v_dir(vis)[1]
-        pen = self.rbm_stack['hid--pen'].get_h_given_v_dir(hid)[1]
+        img = sample_binary(0.5*np.ones((n_sample, self.sizes['pen'])))
 
-        vk = np.concatenate((pen, lbl), axis=1)
+        img_and_label = np.concatenate((img, lbl), axis=1)
 
         for _ in range(self.n_gibbs_gener):
-            hk = self.rbm_stack['pen+lbl--top'].get_h_given_v(vk)[1]
-            vk = self.rbm_stack['pen+lbl--top'].get_v_given_h(hk)[1]
+            hidOut = self.rbm_stack["hid--pen"].get_v_given_h_dir(img)[1]
+            vis = self.rbm_stack["vis--hid"].get_v_given_h_dir(hidOut)[1]
 
-            mid = self.rbm_stack['hid--pen'].get_v_given_h_dir(vk[:,:-10])[1]
-            start = self.rbm_stack['vis--hid'].get_v_given_h_dir(mid)[1]
-            records.append([ax.imshow(start.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True,
-                                      interpolation=None)])
+            lblOut = self.rbm_stack['pen+lbl--top'].get_h_given_v(img_and_label)[1]
+            img_and_label = self.rbm_stack['pen+lbl--top'].get_v_given_h(lblOut)[1]
 
-        anim = stitch_video(fig, records).save("%s.generate%d.mp4" % (name, np.argmax(true_lbl)))
+            img = img_and_label[:,:-n_labels]
+            img_and_label = np.concatenate((img,lbl),axis=1)
 
+            records.append( [ ax.imshow(vis.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True, interpolation=None) ] )
+            
+        anim = stitch_video(fig,records).save("%s.generate%d.mp4"%(name,np.argmax(true_lbl)))            
         return
 
     def train_greedylayerwise(self, vis_trainset, lbl_trainset, n_iterations):
