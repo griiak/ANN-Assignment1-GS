@@ -32,6 +32,7 @@ if __name__ == "__main__":
                         batch_size=200
     )
 
+<<<<<<< HEAD
     ''' greedy layer-wise training '''
 
     dbn.train_greedylayerwise(vis_trainset=train_imgs, lbl_trainset=train_lbls, n_iterations=10)
@@ -46,8 +47,11 @@ if __name__ == "__main__":
         dbn.generate(digit_1hot, name="rbms")
 
     # ''' fine-tune wake-sleep training '''
+=======
+    # ''' greedy layer-wise training '''
+>>>>>>> b54b23c54484c252329758b22e2aaca62fe4a9f4
     #
-    # dbn.train_wakesleep_finetune(vis_trainset=train_imgs, lbl_trainset=train_lbls, n_iterations=2000)
+    # dbn.train_greedylayerwise(vis_trainset=train_imgs, lbl_trainset=train_lbls, n_iterations=15000)
     #
     # dbn.recognize(train_imgs, train_lbls)
     #
@@ -56,4 +60,17 @@ if __name__ == "__main__":
     # for digit in range(10):
     #     digit_1hot = np.zeros(shape=(1,10))
     #     digit_1hot[0,digit] = 1
-    #     dbn.generate(digit_1hot, name="dbn")
+    #     dbn.generate(digit_1hot, name="rbms")
+
+    ''' fine-tune wake-sleep training '''
+
+    dbn.train_wakesleep_finetune(vis_trainset=train_imgs, lbl_trainset=train_lbls, n_iterations=2000)
+
+    dbn.recognize(train_imgs, train_lbls)
+
+    dbn.recognize(test_imgs, test_lbls)
+
+    for digit in range(10):
+        digit_1hot = np.zeros(shape=(1,10))
+        digit_1hot[0,digit] = 1
+        dbn.generate(digit_1hot, name="dbn")
